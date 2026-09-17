@@ -237,7 +237,7 @@ The connector throttles itself to 900 requests per minute to stay inside that li
 
 Widening the **GitHub Repositories** field on a connection that has already synced does not backfill what the new repositories or organizations did in the past. The connector keeps one sync position per repository or organization, and a newly added one starts from the connection's current overall position instead of from your configured **Start date**. Anything created or last updated before that position is never emitted, and the sync reports no warning or error.
 
-For example, a connection syncing `docker/*` since 2026-01-01 that you widen to `docker/*, airbytehq/*` will pick up the `airbytehq` repositories updated after 2026-01-01, but not the ones whose last update is older than that.
+For example, take a connection syncing `docker/*` whose last successful sync ran on 2026-03-15. If you widen it to `docker/*, airbytehq/*`, the next sync picks up only `airbytehq` records created or updated after 2026-03-15 — not everything since the connection's **Start date**, even if that is set to 2026-01-01.
 
 To pull the full history of a newly added repository or organization, clear the affected streams (or refresh the connection) after saving the new value, then sync. Each stream then re-reads from the beginning of the range it supports — your configured **Start date** for streams that honor it, and everything available for the streams listed above that do not.
 
