@@ -43,10 +43,10 @@ The fork workflow runs unit tests and a Docker `spec` smoke test, then publishes
 ## Rollout
 
 1. Save the current source definition/version, connection catalog, and state.
-2. Install the tested image as a custom source and preserve the existing source configuration and connection state when switching the source definition. Do not create a new connection as a shortcut: it would start a new backfill.
-3. Refresh the catalog, select the two new streams, and verify the API key's `experiment:read` scope.
-4. Run a sync and inspect records, rate limits, state progression, and duration. The changes have automated coverage, but need a production-sized sync to measure improvement.
-5. Roll back the source definition/image and remove the two new streams from the catalog if necessary.
+2. Install the tested image as a custom source. First run a manual trial with a separate destination table prefix, including the two new streams. Verify the API key's `experiment:read` scope.
+3. Airbyte's supported update APIs cannot change a source's definition or a connection's source ID. If a replacement connection is needed, preserve the original source configuration, destination, table names, catalog settings, and schedule. Create it paused and copy the saved event state before its first sync. An unseeded connection would restart the historical backfill.
+4. Pause the original connection and wait for or cancel its active job before taking the final state snapshot and enabling the replacement. Keep the original connection and source for rollback, especially if the replacement uses an existing secret reference. Never run both connections against the same destination tables at once.
+5. Inspect records, rate limits, state progression, and duration. To roll back, stop the replacement before re-enabling the original. Replaying from the original event checkpoint requires ID deduplication.
 
 The pagination fix cannot restore historical events already skipped by the old connector. Investigate date-window completeness and plan a targeted backfill separately; this change does not reset state or delete destination data.
 
