@@ -1,0 +1,6 @@
+*
+!main.py
+!requirements.lock
+!source_posthog
+!source_posthog/**
+source_posthog/**/__pycache__
