@@ -8,7 +8,7 @@ This fork keeps the existing seven streams and their schemas, and adds `experime
 - Validates event ordering, IDs, timestamps, and slice bounds before emitting each page. A failed events slice does not advance its saved timestamp. Other streams follow their `next` URL and reject repeated cursors.
 - Includes the start of each time slice and replays the saved timestamp on restart. Optional `events_lookback_hours` replays up to seven days for late arrivals, defaulting to zero. Use ID deduplication when enabling replay; append-only destinations retain duplicates. Finite lookback cannot recover arbitrarily late events.
 - Respects `Retry-After` on throttled requests, with exponential backoff as a fallback.
-- Requests 1,000 persons per page by default (configurable between 100 and 1,000), and reads persons last even for previously saved catalogs.
+- Requests 1,000 persons per page by default (configurable between 100 and 10,000), and reads persons last even for previously saved catalogs. Verify larger pages against your server before using them for a full refresh.
 - Compares event timestamps as instants, preserving the existing per-project and legacy state formats.
 
 Persons remains a full refresh. PostHog does not expose a reliable update cursor through the persons endpoint. Using creation time would miss profile edits and merges. Larger pages reduce request count, but do not eliminate the full scan or guarantee a particular sync duration.
@@ -49,6 +49,8 @@ The fork workflow runs unit tests and a Docker `spec` smoke test, then publishes
 5. Inspect records, rate limits, state progression, and duration. To roll back, stop the replacement before re-enabling the original. Replaying from the original event checkpoint requires ID deduplication.
 
 Copying source state alone is not sufficient for a same-table replacement. Airbyte 2.0 assigns generations per connection. BigQuery destination 3.0.17 can merge an `overwrite_dedup` stream instead of replacing its snapshot when the existing table's generation is newer than the replacement connection's generation. Review and migrate destination generation bookkeeping before switching; otherwise deleted persons or metadata may remain in the destination. Do not reset or rewrite production tables without a tested migration and recoverable backups.
+
+For BigQuery 3.0.17, a live rehearsal verified that an existing empty, schema-matched deterministic staging table makes the overwrite loader replace the final snapshot, even when its generation is higher. After stopping the old workload and backing up both final and staging tables, prepare those empty staging tables for the six existing snapshot streams. Leave incremental events alone. This avoids rewriting final-table generation values. This procedure depends on that destination version's implementation; verify it again before using another version. Its final replacement deletes the old table before copying the new one, so keep recoverable backups for copy failures.
 
 The pagination fix cannot restore historical events already skipped by the old connector. Investigate date-window completeness and plan a targeted backfill separately; this change does not reset state or delete destination data.
 
