@@ -4,19 +4,14 @@
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "PostHog Spec",
     "type": "object",
-    "required": [
-      "api_key",
-      "start_date"
-    ],
+    "required": ["api_key", "start_date"],
     "properties": {
       "start_date": {
         "title": "Start Date",
         "type": "string",
         "description": "The date from which you'd like to replicate the data. Any data before this date will not be replicated.",
         "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
-        "examples": [
-          "2021-01-01T00:00:00Z"
-        ],
+        "examples": ["2021-01-01T00:00:00Z"],
         "format": "date-time"
       },
       "api_key": {
@@ -30,9 +25,7 @@
         "default": "https://app.posthog.com",
         "title": "Base URL",
         "description": "Base PostHog url. Defaults to PostHog Cloud (https://app.posthog.com).",
-        "examples": [
-          "https://posthog.example.com"
-        ]
+        "examples": ["https://posthog.example.com"]
       },
       "events_time_step": {
         "type": "integer",
@@ -42,11 +35,7 @@
         "maximum": 91,
         "title": "Events stream slice step size (in days)",
         "description": "Set lower value in case of failing long running sync of events stream.",
-        "examples": [
-          30,
-          10,
-          5
-        ]
+        "examples": [30, 10, 5]
       },
       "persons_page_size": {
         "type": "integer",
@@ -55,6 +44,15 @@
         "maximum": 1000,
         "title": "Persons page size",
         "description": "Persons per request. Larger pages reduce API requests during the full refresh; lower this if your PostHog server times out."
+      },
+      "events_lookback_hours": {
+        "type": "integer",
+        "title": "Event lookback hours",
+        "description": "Replay this many hours before the saved event timestamp to recover late arrivals. Use Append + Deduped with primary key id to avoid duplicates. Events arriving later than this window require a backfill. Zero still replays events at the saved timestamp.",
+        "default": 0,
+        "minimum": 0,
+        "maximum": 168,
+        "order": 7
       }
     }
   }

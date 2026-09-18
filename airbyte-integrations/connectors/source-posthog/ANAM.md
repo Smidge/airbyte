@@ -4,8 +4,9 @@ This fork keeps the existing seven streams and their schemas, and adds `experime
 
 ## Changes
 
-- Follows the API's `next` URL, including when the server returns fewer records than requested. The upstream events manifest used offset pagination with a page size of 10,000 despite the API's datetime pagination. A regression test reproduces the skipped second page.
-- Rejects repeated pagination cursors with an error instead of looping indefinitely. A failed events slice does not advance its saved timestamp.
+- Reads events in ascending timestamp/UUID order with 1,000 records per request, preserving the REST event payload. Subsequent pages use a HogQL property predicate over both fields, avoiding the legacy timestamp-only `next` URL. Pagination continues to an empty page even if the server returns a short page or `next: null`.
+- Validates event ordering, IDs, timestamps, and slice bounds before emitting each page. A failed events slice does not advance its saved timestamp. Other streams follow their `next` URL and reject repeated cursors.
+- Includes the start of each time slice and replays the saved timestamp on restart. Optional `events_lookback_hours` replays up to seven days for late arrivals, defaulting to zero. Use ID deduplication when enabling replay; append-only destinations retain duplicates. Finite lookback cannot recover arbitrarily late events.
 - Respects `Retry-After` on throttled requests, with exponential backoff as a fallback.
 - Requests 1,000 persons per page by default (configurable between 100 and 1,000), and reads persons last even for previously saved catalogs.
 - Compares event timestamps as instants, preserving the existing per-project and legacy state formats.
@@ -30,8 +31,8 @@ The pinned CDK requires Python 3.10; Python 3.11 rejects its dataclass defaults.
 
 ```sh
 python3.10 -m venv .venv
-.venv/bin/pip install -r requirements.lock pytest requests-mock pytest-mock
-.venv/bin/python -m pytest unit_tests
+.venv/bin/pip install -r requirements.lock 'pytest<9' requests-mock pytest-mock
+.venv/bin/python -m pytest -c /dev/null -p no:cacheprovider unit_tests
 
 docker build -f Dockerfile.anam -t source-posthog:1.2.0-anam.1 .
 docker run --rm source-posthog:1.2.0-anam.1 spec
@@ -48,3 +49,9 @@ The fork workflow runs unit tests and a Docker `spec` smoke test, then publishes
 5. Roll back the source definition/image and remove the two new streams from the catalog if necessary.
 
 The pagination fix cannot restore historical events already skipped by the old connector. Investigate date-window completeness and plan a targeted backfill separately; this change does not reset state or delete destination data.
+
+## Events API compatibility
+
+This is a compatibility fix for the deprecated REST events endpoint. It requires a PostHog server whose events query orders equal timestamps by UUID, as verified in [PostHog source commit 570e009](https://github.com/PostHog/posthog/blob/570e00941e3ba4cc17dfb3c9bdc5e3de353c587f/posthog/hogql_queries/events_query_runner.py). It retains the existing seven stream schemas and does not introduce export storage or per-row export billing. It does not call the query endpoint for bulk exports.
+
+PostHog recommends [batch exports](https://posthog.com/docs/cdp/batch-exports) for recurring event/person exports. The [REST endpoint](https://posthog.com/docs/api/events) may be removed; this fork does not change that provider support status. Batch exports would require storage configuration and a separate compatibility design for person records. A live contract probe and measured trial are required before deployment.

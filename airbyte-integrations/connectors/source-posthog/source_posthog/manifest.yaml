@@ -140,6 +140,8 @@ definitions:
       requester:
         $ref: "#/definitions/requester"
         path: "/projects/{{ stream_slice.project_id }}/events/"
+      paginator:
+        type: NoPagination
 
   experiment_summaries_stream:
     $ref: "#/definitions/base_slicing_stream"

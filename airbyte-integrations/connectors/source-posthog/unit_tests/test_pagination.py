@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Airbyte, Inc., all rights reserved.
+
 from source_posthog import SourcePosthog
 
 from airbyte_cdk.models import SyncMode
@@ -9,25 +11,6 @@ BASE = "https://app.posthog.com/api/projects/42/"
 
 def stream(name, **config):
     return next(s for s in SourcePosthog().streams({**CONFIG, **config}) if s.name == name)
-
-
-def test_events_follow_next_on_short_page(requests_mock):
-    url = BASE + "events/"
-    first = {"id": "new", "timestamp": "2026-09-02T12:00:00Z"}
-    older = {"id": "old", "timestamp": "2026-09-01T12:00:00Z"}
-    requests_mock.get(url, json={"results": [first], "next": url + "?after=2026-09-01T00%3A00%3A00Z&before=2026-09-02T12%3A00%3A00Z"})
-    requests_mock.get(
-        url + "?after=2026-09-01T00%3A00%3A00Z&before=2026-09-02T12%3A00%3A00Z", complete_qs=True, json={"results": [older], "next": None}
-    )
-    events = stream("events")
-    records = list(
-        events.read_records(
-            SyncMode.incremental,
-            stream_slice={"project_id": "42", "start_time": "2026-09-01T00:00:00Z", "end_time": "2026-09-03T00:00:00Z"},
-        )
-    )
-    assert [r["id"] for r in records] == ["new", "old"]
-    assert events.state == {"42": {"timestamp": first["timestamp"]}}
 
 
 import pytest
@@ -42,23 +25,6 @@ def test_persons_follow_next_and_configure_page_size(requests_mock, page_size):
     records = list(persons.read_records(SyncMode.full_refresh, stream_slice={"id": 42}))
     assert [r["id"] for r in records] == ["one", "two"]
     assert requests_mock.request_history[0].qs == {"limit": [str(page_size)]}
-
-
-def test_loop_fails_without_advancing_event_state(requests_mock):
-    url = BASE + "events/"
-    next_url = url + "?before=2026-09-02T00:00:00Z"
-    requests_mock.get(url, json={"results": [{"id": "one", "timestamp": "2026-09-02T12:00:00Z"}], "next": next_url})
-    events = stream("events")
-    events.state = {"42": {"timestamp": "2026-09-01T00:00:00Z"}}
-    with pytest.raises(ValueError, match="repeated a pagination cursor"):
-        list(
-            events.read_records(
-                SyncMode.incremental,
-                stream_slice={"project_id": "42", "start_time": "2026-09-01T00:00:00Z", "end_time": "2026-09-03T00:00:00Z"},
-            )
-        )
-    assert requests_mock.call_count == 2
-    assert events.state == {"42": {"timestamp": "2026-09-01T00:00:00Z"}}
 
 
 @pytest.mark.parametrize("next_url", ["https://other.example/api/projects/42/persons?offset=1", BASE + "events/?offset=1"])

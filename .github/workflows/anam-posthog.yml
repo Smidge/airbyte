@@ -22,7 +22,7 @@ jobs:
           sparse-checkout: airbyte-integrations/connectors/source-posthog
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.10"
       - name: Install test dependencies
         run: pip install -r requirements.lock 'pytest<9' requests-mock pytest-mock
       - name: Run tests

@@ -3,13 +3,14 @@
 from airbyte_cdk.sources.declarative.manifest_declarative_source import ManifestDeclarativeSource
 from airbyte_cdk.sources.declarative.parsers.model_to_component_factory import ModelToComponentFactory
 from airbyte_cdk.sources.declarative.yaml_declarative_source import YamlDeclarativeSource
-from source_posthog.components import PosthogRetriever
+from source_posthog.components import EventsRetriever, PosthogRetriever
 
 
 class PosthogComponentFactory(ModelToComponentFactory):
     def create_simple_retriever(self, model, config, **kwargs):
         retriever = super().create_simple_retriever(model, config, **kwargs)
-        return PosthogRetriever(
+        retriever_class = EventsRetriever if retriever.name == "events" else PosthogRetriever
+        return retriever_class(
             requester=retriever.requester,
             record_selector=retriever.record_selector,
             config=config,
