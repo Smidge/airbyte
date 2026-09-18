@@ -74,6 +74,16 @@ def test_experiments_fetch_details_for_each_project(requests_mock):
     for project in [42, 43]:
         base = f"https://app.posthog.com/api/projects/{project}/experiments"
         requests_mock.get(base, json={"results": [{"id": project * 10}], "next": None})
+        requests_mock.get(base + "?archived=true", json={"results": [{"id": project * 10 + 1}], "next": None})
+        requests_mock.get(
+            base + f"/{project * 10 + 1}/",
+            json={
+                "id": project * 10 + 1,
+                "archived": True,
+                "metrics": [{"kind": "ExperimentMetric"}],
+                "parameters": {"feature_flag_variants": [{"key": "control"}, {"key": "test"}]},
+            },
+        )
         requests_mock.get(
             base + f"/{project * 10}/",
             json={
@@ -89,7 +99,7 @@ def test_experiments_fetch_details_for_each_project(requests_mock):
         for part in experiments.stream_slices(sync_mode=SyncMode.full_refresh)
         for record in experiments.read_records(SyncMode.full_refresh, stream_slice=part)
     ]
-    assert [r["id"] for r in records] == [420, 430]
+    assert [r["id"] for r in records] == [420, 421, 430, 431]
     assert all(r["metrics"] == [{"kind": "ExperimentMetric"}] for r in records)
     assert all(len(r["parameters"]["feature_flag_variants"]) == 2 for r in records)
 
@@ -111,6 +121,7 @@ def test_rate_limit_respects_retry_after(requests_mock, mocker):
 def test_experiment_results_keep_cached_results_and_skip_uncomputed(requests_mock):
     requests_mock.get("https://app.posthog.com/api/projects", json={"results": [{"id": 42}], "next": None})
     requests_mock.get(BASE + "experiments", json={"results": [{"id": 1}, {"id": 2}], "next": None})
+    requests_mock.get(BASE + "experiments?archived=true", json={"results": [], "next": None})
     result = {"id": "run-id", "status": "completed", "results": [{"metric_uuid": "conversion", "result": {"probability": 0.98}}]}
     requests_mock.get(BASE + "experiments/1/metrics_recalculation/latest/", json=result)
     requests_mock.get(BASE + "experiments/2/metrics_recalculation/latest/", status_code=404, json={"detail": "No results"})

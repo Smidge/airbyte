@@ -16,7 +16,7 @@ Persons remains a full refresh. PostHog does not expose a reliable update cursor
 
 The API key needs `experiment:read` in addition to the existing scopes.
 
-`experiments` lists experiments across the projects visible to the key, then fetches each detail endpoint. It includes feature flags, variants/parameters, status, dates, conclusions, primary and secondary metric definitions, and shared metrics. Nested JSON is preserved.
+`experiments` lists both archived and unarchived experiments across the projects visible to the key, then fetches each detail endpoint. It includes feature flags, variants/parameters, status, dates, conclusions, primary and secondary metric definitions, and shared metrics. Nested JSON is preserved.
 
 `experiment_results` fetches `/experiments/{id}/metrics_recalculation/latest/`. It includes the saved run status, calculation timestamps, metric results/errors, and project/experiment IDs. A 404 means no saved run is available and emits no record. This stream never starts a recalculation; results can be stale or absent. Older PostHog servers without this endpoint will produce an empty results stream.
 

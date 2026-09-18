@@ -146,6 +146,24 @@ definitions:
     $parameters:
       name: "experiments"
       path: "experiments"
+    retriever:
+      $ref: "#/definitions/retriever"
+      requester:
+        $ref: "#/definitions/requester"
+        path: "/projects/{{ stream_slice.id }}/experiments"
+      partition_router:
+        - type: SubstreamPartitionRouter
+          parent_stream_configs:
+            - stream: "#/definitions/projects_stream"
+              parent_key: id
+              partition_field: id
+        - type: ListPartitionRouter
+          values: ["false", "true"]
+          cursor_field: archived
+          request_option:
+            type: RequestOption
+            field_name: archived
+            inject_into: request_parameter
 
   experiments_stream:
     $ref: "#/definitions/base_stream"
