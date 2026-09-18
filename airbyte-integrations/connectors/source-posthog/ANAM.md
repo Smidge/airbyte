@@ -48,6 +48,8 @@ The fork workflow runs unit tests and a Docker `spec` smoke test, then publishes
 4. Pause the original connection and wait for or cancel its active job before taking the final state snapshot and enabling the replacement. Keep the original connection and source for rollback, especially if the replacement uses an existing secret reference. Never run both connections against the same destination tables at once.
 5. Inspect records, rate limits, state progression, and duration. To roll back, stop the replacement before re-enabling the original. Replaying from the original event checkpoint requires ID deduplication.
 
+Copying source state alone is not sufficient for a same-table replacement. Airbyte 2.0 assigns generations per connection. BigQuery destination 3.0.17 can merge an `overwrite_dedup` stream instead of replacing its snapshot when the existing table's generation is newer than the replacement connection's generation. Review and migrate destination generation bookkeeping before switching; otherwise deleted persons or metadata may remain in the destination. Do not reset or rewrite production tables without a tested migration and recoverable backups.
+
 The pagination fix cannot restore historical events already skipped by the old connector. Investigate date-window completeness and plan a targeted backfill separately; this change does not reset state or delete destination data.
 
 ## Events API compatibility
