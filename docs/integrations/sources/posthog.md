@@ -43,6 +43,20 @@ This page contains the setup guide and reference information for the PostHog sou
 - [FeatureFlags](https://posthog.com/docs/api/feature-flags)
 - [Insights](https://posthog.com/docs/api/insights)
 - [Persons](https://posthog.com/docs/api/people)
+- [Experiments](https://posthog.com/docs/api/experiments) (Full refresh)
+- Experiment results (Full refresh, latest saved metric calculation)
+
+The experiment streams require `experiment:read` on the personal API key. Experiment definitions include both archived and unarchived experiments and preserve nested metric and variant definitions. Results are saved snapshots: reading them does not trigger recalculation, and experiments without saved results emit no result record. Servers without the saved-results endpoint also emit no results.
+
+### Pagination and replay
+
+Events are read in ascending timestamp/UUID order with 1,000 records per request. The connector checks ordering and slice bounds before emitting each page, and advances the existing per-project timestamp state only after completing a slice. This requires a PostHog server with UUID secondary ordering for events.
+
+The saved timestamp is replayed on the next sync. Set `events_lookback_hours` to replay a larger window for late arrivals, up to 168 hours. The default is zero. Use Append + Deduped with primary key `id` to avoid replay duplicates; append-only destinations retain duplicates. Events arriving outside the configured window require a backfill.
+
+Persons remains a full refresh to capture profile edits and merges. `persons_page_size` defaults to 1,000 and accepts values from 100 to 1,000. Persons runs after the other streams, including on existing connections with a saved catalog order. Larger pages reduce request count but do not remove the full scan.
+
+The [REST events API is deprecated](https://posthog.com/docs/api/events). This pagination change preserves compatibility with existing fields and state; PostHog recommends [batch exports](https://posthog.com/docs/cdp/batch-exports) for recurring exports.
 
 ### Rate limiting
 
