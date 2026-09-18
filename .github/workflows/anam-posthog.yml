@@ -1,0 +1,42 @@
+name: Anam PostHog connector
+on:
+  push:
+    branches: [fix/posthog-pagination-experiments]
+    paths:
+      - airbyte-integrations/connectors/source-posthog/**
+      - .github/workflows/anam-posthog.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+jobs:
+  test-and-publish:
+    if: github.repository == 'Smidge/airbyte'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: airbyte-integrations/connectors/source-posthog
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: airbyte-integrations/connectors/source-posthog
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Install test dependencies
+        run: pip install -r requirements.lock 'pytest<9' requests-mock pytest-mock
+      - name: Run tests
+        run: python -m pytest -c /dev/null unit_tests
+      - name: Build container
+        run: docker build -f Dockerfile.anam -t ghcr.io/smidge/source-posthog:${{ github.sha }} .
+      - name: Check connector entrypoint
+        run: |
+          docker run --rm ghcr.io/smidge/source-posthog:${{ github.sha }} spec > /tmp/spec.jsonl
+          python -c 'import json; records=[json.loads(line) for line in open("/tmp/spec.jsonl")]; assert any(record.get("type") == "SPEC" for record in records)'
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish commit image
+        run: docker push ghcr.io/smidge/source-posthog:${{ github.sha }}
