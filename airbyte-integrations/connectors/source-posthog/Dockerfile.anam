@@ -1,0 +1,9 @@
+FROM python:3.10-slim-bookworm
+WORKDIR /airbyte/integration_code
+ENV PYTHONUNBUFFERED=1
+ENV AIRBYTE_ENTRYPOINT="python /airbyte/integration_code/main.py"
+COPY requirements.lock ./
+RUN pip install --no-cache-dir -r requirements.lock
+COPY source_posthog ./source_posthog
+COPY main.py ./
+ENTRYPOINT ["python", "/airbyte/integration_code/main.py"]

@@ -2,57 +2,72 @@
 # Copyright (c) 2023 Airbyte, Inc., all rights reserved.
 #
 
-from dataclasses import dataclass
-from typing import Any, Iterable, Mapping, MutableMapping, Optional
+from dataclasses import InitVar, dataclass
+from typing import Any, Iterable, Mapping, Optional
+from urllib.parse import parse_qsl, urljoin, urlsplit
+
+from dateutil.parser import isoparse
 
 from airbyte_cdk.sources.declarative.incremental import Cursor
+from airbyte_cdk.sources.declarative.requesters.paginators.default_paginator import DefaultPaginator
+from airbyte_cdk.sources.declarative.requesters.paginators.strategies.pagination_strategy import PaginationStrategy
 from airbyte_cdk.sources.declarative.retrievers.simple_retriever import SimpleRetriever
 from airbyte_cdk.sources.declarative.stream_slicers import CartesianProductStreamSlicer
 from airbyte_cdk.sources.declarative.types import Record, StreamSlice, StreamState
 
 
 @dataclass
-class EventsSimpleRetriever(SimpleRetriever):
-    def __post_init__(self, parameters: Mapping[str, Any]):
+class PosthogNextPageStrategy(PaginationStrategy):
+    parameters: InitVar[Mapping[str, Any]]
+
+    def __post_init__(self, parameters):
+        self.reset()
+
+    @property
+    def initial_token(self):
+        return None
+
+    def get_page_size(self):
+        return None
+
+    def reset(self):
+        self._seen = set()
+
+    @staticmethod
+    def _page_key(url):
+        parts = urlsplit(url)
+        return (parts.path.rstrip("/"), tuple(sorted(parse_qsl(parts.query))))
+
+    def next_page_token(self, response, last_records):
+        next_url = response.json().get("next")
+        if not next_url:
+            return None
+        next_url = urljoin(response.url, next_url)
+        current, target = urlsplit(response.url), urlsplit(next_url)
+        if (target.scheme, target.netloc, target.path.rstrip("/")) != (current.scheme, current.netloc, current.path.rstrip("/")):
+            raise ValueError("PostHog returned a next-page URL outside the current endpoint")
+        self._seen.add(self._page_key(response.url))
+        key = self._page_key(next_url)
+        if key in self._seen:
+            raise ValueError("PostHog repeated a pagination cursor; stopping to avoid an endless sync")
+        self._seen.add(key)
+        return next_url
+
+
+@dataclass
+class PosthogRetriever(SimpleRetriever):
+    def __post_init__(self, parameters):
         super().__post_init__(parameters)
         self.cursor = self.stream_slicer if isinstance(self.stream_slicer, Cursor) else None
 
-    def request_params(
-        self,
-        stream_state: StreamSlice,
-        stream_slice: Optional[StreamSlice] = None,
-        next_page_token: Optional[Mapping[str, Any]] = None,
-    ) -> MutableMapping[str, Any]:
-        """Events API return records in descendent order (newest first).
-        Default page limit is 100 items.
-
-        Even though API mentions such pagination params as 'limit' and 'offset', they are actually ignored.
-        Instead, response contains 'next' url with datetime range for next OLDER records, like:
-
-        response:
-        {
-            "next": "https://app.posthog.com/api/projects/2331/events?after=2021-01-01T00%3A00%3A00.000000Z&before=2021-05-29T16%3A44%3A43.175000%2B00%3A00",
-            "results": [
-                {id ...},
-                {id ...},
-            ]
-        }
-
-        So if next_page_token is set (contains 'after'/'before' params),
-        then stream_slice params ('after'/'before') should be ignored.
-        """
-
+    def _request_params(self, stream_state=None, stream_slice=None, next_page_token=None):
+        # The next URL already contains the complete query, including event time bounds.
         if next_page_token:
-            stream_slice = {}
-
-        return self._get_request_options(
-            stream_slice,
-            next_page_token,
-            self.requester.get_request_params,
-            self.paginator.get_request_params,
-            self.stream_slicer.get_request_params,
-            self.requester.get_authenticator().get_request_body_json,
-        )
+            return {}
+        params = dict(super()._request_params(stream_state, stream_slice, next_page_token))
+        if isinstance(self.paginator, DefaultPaginator):
+            params["limit"] = self.config.get("persons_page_size", 1000) if self.name == "persons" else 100
+        return params
 
 
 @dataclass
@@ -90,7 +105,7 @@ class EventsCartesianProductStreamSlicer(Cursor, CartesianProductStreamSlicer):
             current_cursor_value = self._cursor.get(project_id, {}).get("timestamp", "")
             new_cursor_value = most_recent_record.get("timestamp", "")
 
-            self._cursor[project_id] = {"timestamp": max(current_cursor_value, new_cursor_value)}
+            self._cursor[project_id] = {"timestamp": max(filter(None, (current_cursor_value, new_cursor_value)), key=isoparse)}
 
     def stream_slices(self) -> Iterable[StreamSlice]:
         """Since each project has its own state, then we need to have a separate
@@ -142,7 +157,7 @@ class EventsCartesianProductStreamSlicer(Cursor, CartesianProductStreamSlicer):
         first_cursor_value = first.get("timestamp")
         second_cursor_value = second.get("timestamp")
         if first_cursor_value and second_cursor_value:
-            return first_cursor_value >= second_cursor_value
+            return isoparse(first_cursor_value) >= isoparse(second_cursor_value)
         elif first_cursor_value:
             return True
         else:
