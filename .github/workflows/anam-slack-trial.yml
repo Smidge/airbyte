@@ -23,8 +23,9 @@ jobs:
       - name: Restore original source for baseline
         if: matrix.variant == 'baseline'
         run: |
-          git show 8467589^:airbyte-integrations/connectors/source-slack/components.py > airbyte-integrations/connectors/source-slack/components.py
-          git show 8467589^:airbyte-integrations/connectors/source-slack/manifest.yaml > airbyte-integrations/connectors/source-slack/manifest.yaml
+          git fetch --depth=1 origin 4548421c1ea0a41cc2a4a7baab236d879f1acfea
+          git show 4548421c1ea0a41cc2a4a7baab236d879f1acfea:airbyte-integrations/connectors/source-slack/components.py > airbyte-integrations/connectors/source-slack/components.py
+          git show 4548421c1ea0a41cc2a4a7baab236d879f1acfea:airbyte-integrations/connectors/source-slack/manifest.yaml > airbyte-integrations/connectors/source-slack/manifest.yaml
       - name: Build and check image
         working-directory: airbyte-integrations/connectors/source-slack
         run: |
