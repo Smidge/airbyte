@@ -1,0 +1,39 @@
+name: Anam Slack connector
+on:
+  push:
+    branches: [fix/slack-inaccessible-channels-checkpoints]
+    paths:
+      - airbyte-integrations/connectors/source-slack/**
+      - .github/workflows/anam-slack.yml
+permissions:
+  contents: read
+  packages: write
+jobs:
+  publish:
+    if: github.repository == 'Smidge/airbyte'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: airbyte-integrations/connectors/source-slack
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify regressions and legacy migration
+        working-directory: airbyte-integrations/connectors/source-slack
+        run: |
+          pip install 'airbyte-cdk==7.28.4' 'pytest<9' pytest-mock requests-mock freezegun mock
+          python -m pytest unit_tests -q -k 'restart or partitions_skip_archived or state_migration'
+      - name: Build and verify production image
+        working-directory: airbyte-integrations/connectors/source-slack
+        run: |
+          docker build -f Dockerfile.anam -t ghcr.io/smidge/source-slack:${{ github.sha }} .
+          docker run --rm ghcr.io/smidge/source-slack:${{ github.sha }} spec > /tmp/spec.jsonl
+          python -c 'import json; assert any(json.loads(line).get("type") == "SPEC" for line in open("/tmp/spec.jsonl"))'
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish pinned production image
+        run: docker push ghcr.io/smidge/source-slack:${{ github.sha }}
