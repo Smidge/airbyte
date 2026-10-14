@@ -405,6 +405,7 @@ definitions:
         path: "{{ parameters['path'] }}"
         http_method: GET
         request_parameters:
+          inclusive: "True"
           channel: "{{ stream_partition['parent_slice']['channel'] }}"
         request_headers: {}
         authenticator:
@@ -447,6 +448,14 @@ definitions:
         - "%s"
         - "%s_as_float"
       datetime_format: "%s"
+      start_time_option:
+        type: RequestOption
+        inject_into: request_parameter
+        field_name: oldest
+      end_time_option:
+        type: RequestOption
+        inject_into: request_parameter
+        field_name: latest
       start_datetime:
         type: MinMaxDatetime
         datetime: "{{ config['start_date'] }}"

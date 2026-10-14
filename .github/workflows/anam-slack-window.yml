@@ -23,7 +23,7 @@ jobs:
         working-directory: airbyte-integrations/connectors/source-slack
         run: |
           pip install 'airbyte-cdk==7.33.0' 'pytest==9.0.3' pytest-mock requests-mock freezegun mock
-          python -m pytest unit_tests -q -k 'history_window or quiet_thread_parents or restart or partitions_skip_archived or state_migration'
+          python -m pytest unit_tests -q -k 'thread_requests or history_window or quiet_thread_parents or restart or partitions_skip_archived or state_migration'
       - name: Build and verify trial image
         working-directory: airbyte-integrations/connectors/source-slack
         run: |
