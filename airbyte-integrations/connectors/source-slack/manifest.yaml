@@ -399,7 +399,7 @@ definitions:
       $ref: "#/definitions/retriever"
       requester:
         type: CustomRequester
-        class_name: "source_declarative_manifest.components.MessagesAndThreadsHttpRequester"
+        class_name: "source_declarative_manifest.components.ThreadRepliesHttpRequester"
         url_match: "https://slack.com/api/conversations.replies?.+"
         url_base: https://slack.com/api/
         path: "{{ parameters['path'] }}"
@@ -435,6 +435,8 @@ definitions:
             # incremental_dependency set to true to read parent state incrementally with custom substream partition router
             incremental_dependency: true
             parent_key: ts
+            extra_fields:
+              - [latest_reply]
             partition_field: float_ts
             request_option:
               type: RequestOption

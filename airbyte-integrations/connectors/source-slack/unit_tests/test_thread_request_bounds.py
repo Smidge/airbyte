@@ -77,3 +77,64 @@ def test_thread_requests_honor_saved_cursor_and_keep_paginated_boundary_replies(
         assert float(request.qs["latest"][0]) == 1791936000
         assert request.qs["inclusive"] == ["true"]
     assert float(output.most_recent_state.stream_state.state["float_ts"]) == checkpoint + 2
+
+
+@freeze_time("2026-10-14T00:00:00Z")
+@pytest.mark.parametrize(
+    "latest_reply,expected_requests,lookback",
+    [
+        ("1791849599.999999", 0, 0),
+        ("1791849599.999999", 1, 1),
+        ("1791849600.000000", 1, 0),
+        ("1791849600.000001", 1, 0),
+        (None, 1, 0),
+        ("invalid", 1, 0),
+        ("NaN", 1, 0),
+        ("Infinity", 1, 0),
+    ],
+)
+def test_thread_requests_skip_only_proven_older_replies(requests_mock, token_config, latest_reply, expected_requests, lookback):
+    config = {
+        **deepcopy(token_config),
+        "start_date": "2025-12-26T00:00:00Z",
+        "end_date": "2026-10-14T00:00:00Z",
+        "channel_filter": ["airbyte-for-beginners"],
+        "lookback_window": lookback,
+        "channel_messages_window_size": 365,
+        "threads_ignore_no_replies": True,
+    }
+    root = "1791763200"
+    parent = {"ts": root, "thread_ts": root, "reply_count": 1}
+    if latest_reply is not None:
+        parent["latest_reply"] = latest_reply
+    requests_mock.get("https://slack.com/api/conversations.history", json={"ok": True, "messages": [parent]})
+    endpoint = requests_mock.get("https://slack.com/api/conversations.replies", json={"ok": True, "messages": []})
+    state = (
+        StateBuilder()
+        .with_stream_state(
+            "threads",
+            {
+                "state": {"float_ts": "1791849600"},
+                "use_global_cursor": True,
+                "parent_state": {"channel_messages": {"float_ts": "1766707200"}},
+            },
+        )
+        .build()
+    )
+    catalog = ConfiguredAirbyteCatalogSerializer.load(
+        {
+            "streams": [
+                {
+                    "stream": {"name": "threads", "json_schema": {}, "supported_sync_modes": ["incremental"]},
+                    "sync_mode": "incremental",
+                    "destination_sync_mode": "append",
+                }
+            ]
+        }
+    )
+    output = read(get_source(config, "threads", state), config=config, catalog=catalog, state=state)
+    assert not output.errors
+    assert not output.records
+    assert endpoint.call_count == expected_requests
+    parent_state = output.most_recent_state.stream_state.parent_state["channel_messages"]
+    assert float(parent_state["states"][0]["cursor"]["float_ts"]) == float(root)
