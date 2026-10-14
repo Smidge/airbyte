@@ -604,7 +604,7 @@ spec:
         order: 8
         default: 100
         minimum: 1
-        maximum: 100
+        maximum: 365
         title: Channel messages date window size (in days)
         description: The size (in days) of the date window that will be used while syncing data from the channel messages stream. A smaller window will allow for greater parallelization when syncing records, but can lead to rate limiting errors.
         examples:
