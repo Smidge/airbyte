@@ -30,10 +30,18 @@ jobs:
           docker build -f Dockerfile.window-trial -t ghcr.io/smidge/source-slack:window-${{ github.sha }} .
           docker run --rm ghcr.io/smidge/source-slack:window-${{ github.sha }} spec > /tmp/spec.jsonl
           python -c 'import json; assert any(json.loads(line).get("type") == "SPEC" for line in open("/tmp/spec.jsonl"))'
+      - name: Build image without trial instrumentation
+        working-directory: airbyte-integrations/connectors/source-slack
+        run: |
+          docker build -f Dockerfile.window -t ghcr.io/smidge/source-slack:year-${{ github.sha }} .
+          docker run --rm ghcr.io/smidge/source-slack:year-${{ github.sha }} spec > /tmp/year-spec.jsonl
+          python -c 'import json; assert any(json.loads(line).get("type") == "SPEC" for line in open("/tmp/year-spec.jsonl"))'
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Publish pinned trial image
-        run: docker push ghcr.io/smidge/source-slack:window-${{ github.sha }}
+        run: |
+          docker push ghcr.io/smidge/source-slack:window-${{ github.sha }}
+          docker push ghcr.io/smidge/source-slack:year-${{ github.sha }}
